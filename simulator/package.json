@@ -1,0 +1,16 @@
+{
+  "name": "bike-black-box-simulator",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Simulated motorcycle telemetry client (stand-in for ESP32)",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "accident": "node src/index.js --accident"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7"
+  }
+}
