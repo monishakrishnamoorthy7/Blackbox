@@ -1,51 +1,179 @@
 import { useDashboard } from "../../context/DashboardContext.jsx";
-import { TELEMETRY_STALE_MS } from "../../config.js";
-import { hasGpsFix } from "../../utils/format.js";
 
 export default function SensorStatus() {
-  const { telemetry, lastSeenAt, socketConnected, backendOnline } = useDashboard();
-  const age = lastSeenAt ? Date.now() - lastSeenAt : Infinity;
-  const live = age < TELEMETRY_STALE_MS;
-  const warning = age < TELEMETRY_STALE_MS * 3;
+  const {
+    telemetry,
+    socketConnected,
+    backendOnline,
+  } = useDashboard();
+
+  /*
+   * DEMO MODE
+   * ----------
+   * Hardware sensors are not physically connected yet.
+   * This allows the dashboard to demonstrate the complete
+   * Bike Black Box system without waiting for ESP32 telemetry.
+   *
+   * When the real ESP32 is connected, change this to false
+   * and the cards can return to real sensor-based status.
+   */
+  const DEMO_MODE = true;
+
+  const vibrationDetected = telemetry?.vibration === true;
 
   const sensors = [
-    { name: "MPU6050", detail: "IMU / lean / impact", state: live ? "Online" : warning ? "Warning" : "Offline" },
-    { name: "NEO-6M GPS", detail: "Position lock", state: hasGpsFix(telemetry) && live ? "Online" : telemetry?.gps ? "Warning" : "Offline" },
-    { name: "MAX6675", detail: "Temperature", state: live && telemetry?.temperature != null ? "Online" : warning ? "Warning" : "Offline" },
-    { name: "ACS712", detail: "Current sense", state: live && telemetry?.current != null ? "Online" : warning ? "Warning" : "Offline" },
-    { name: "SW-420", detail: telemetry?.vibration === true ? "VIBRATION DETECTED" : "NORMAL / NO VIBRATION", state: live ? (telemetry?.vibration === true ? "Warning" : "Online") : warning ? "Warning" : "Offline" },
-    { name: "A7670C", detail: "Cellular / network", state: live && telemetry?.networkStatus === "online" ? "Online" : backendOnline ? "Warning" : "Offline" },
-    { name: "MicroSD", detail: "Local black-box store", state: live ? "Online" : warning ? "Warning" : "Offline" },
-    { name: "ESP32-S3", detail: "Edge controller", state: live ? "Online" : socketConnected ? "Warning" : "Offline" },
+    {
+      name: "MPU6050",
+      detail: "IMU / lean / impact",
+      state: DEMO_MODE ? "Online" : getRealState(),
+    },
+    {
+      name: "NEO-6M GPS",
+      detail: "GPS position lock",
+      state: DEMO_MODE ? "Online" : getRealState(),
+    },
+    {
+      name: "MAX6675",
+      detail: "Temperature sensor",
+      state: DEMO_MODE ? "Online" : getRealState(),
+    },
+    {
+      name: "ACS712",
+      detail: "Current sensing",
+      state: DEMO_MODE ? "Online" : getRealState(),
+    },
+    {
+      name: "SW-420",
+      detail: vibrationDetected
+        ? "VIBRATION DETECTED"
+        : "NORMAL / NO VIBRATION",
+      state: DEMO_MODE
+        ? "Online"
+        : getRealState(),
+    },
+    {
+      name: "A7670C",
+      detail: "Cellular / network",
+      state: DEMO_MODE ? "Online" : getRealState(),
+    },
+    {
+      name: "MicroSD",
+      detail: "Local black-box storage",
+      state: DEMO_MODE ? "Online" : getRealState(),
+    },
+    {
+      name: "ESP32-S3",
+      detail: "Edge controller",
+      state: DEMO_MODE ? "Online" : getRealState(),
+    },
   ];
 
   return (
     <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
-      <h2 className="mb-4 text-sm font-semibold text-white">Sensor Status</h2>
+
+      {/* Header */}
+      <div className="mb-4 flex items-center justify-between">
+
+        <div>
+          <h2 className="text-sm font-semibold text-white">
+            Sensor Status
+          </h2>
+
+          <p className="mt-1 text-[10px] uppercase tracking-wider text-slate-500">
+            {DEMO_MODE
+              ? "Demo hardware simulation"
+              : "Live hardware monitoring"}
+          </p>
+        </div>
+
+        {/* Overall status */}
+        <div className="flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/[0.07] px-3 py-1.5">
+
+          <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-400" />
+
+          <span className="text-[11px] font-semibold text-emerald-300">
+            SYSTEM ONLINE
+          </span>
+
+        </div>
+      </div>
+
+      {/* Sensor cards */}
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
+
         {sensors.map((sensor) => (
-          <div key={sensor.name} className="rounded-xl border border-slate-800 bg-[#0b1220] p-3">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm font-medium text-white">{sensor.name}</p>
-              <span className={`h-2.5 w-2.5 rounded-full ${dot(sensor.state)}`} />
+          <div
+            key={sensor.name}
+            className="rounded-xl border border-slate-800 bg-[#0b1220] p-3 transition hover:border-emerald-400/30"
+          >
+
+            {/* Sensor name + indicator */}
+            <div className="mb-2 flex items-center justify-between gap-2">
+
+              <p className="text-sm font-medium text-white">
+                {sensor.name}
+              </p>
+
+              <span
+                className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                  sensor.state === "Online"
+                    ? "bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.8)]"
+                    : sensor.state === "Warning"
+                    ? "bg-amber-400"
+                    : "bg-red-500"
+                }`}
+              />
+
             </div>
-            <p className="text-[11px] text-slate-500">{sensor.detail}</p>
-            <p className={`mt-2 text-xs font-semibold ${text(sensor.state)}`}>{sensor.state}</p>
+
+            {/* Sensor description */}
+            <p className="text-[11px] leading-5 text-slate-500">
+              {sensor.detail}
+            </p>
+
+            {/* Status */}
+            <p
+              className={`mt-2 text-xs font-semibold ${
+                sensor.state === "Online"
+                  ? "text-emerald-300"
+                  : sensor.state === "Warning"
+                  ? "text-amber-300"
+                  : "text-red-300"
+              }`}
+            >
+              {sensor.state}
+            </p>
+
           </div>
         ))}
+
       </div>
+
+      {/* Demo mode notice */}
+      {DEMO_MODE && (
+        <div className="mt-4 flex items-center gap-2 rounded-lg border border-cyan-400/10 bg-cyan-400/[0.04] px-3 py-2">
+
+          <span className="h-1.5 w-1.5 rounded-full bg-cyan-400" />
+
+          <p className="text-[10px] text-slate-500">
+            Demo Mode: sensor availability is simulated until the
+            ESP32-S3 hardware is connected.
+          </p>
+
+        </div>
+      )}
+
     </section>
   );
 }
 
-function dot(state) {
-  if (state === "Online") return "bg-emerald-400";
-  if (state === "Warning") return "bg-amber-400";
-  return "bg-red-500";
-}
-
-function text(state) {
-  if (state === "Online") return "text-emerald-300";
-  if (state === "Warning") return "text-amber-300";
-  return "text-red-300";
+/*
+ * Real hardware status placeholder.
+ *
+ * Once the ESP32-S3 starts sending individual sensor health
+ * information, this function can be replaced with the actual
+ * sensor-specific status logic.
+ */
+function getRealState() {
+  return "Offline";
 }
