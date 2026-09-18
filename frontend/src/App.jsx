@@ -4,6 +4,7 @@ import Sidebar from "./components/layout/Sidebar.jsx";
 import Header from "./components/layout/Header.jsx";
 import AccidentAlert from "./components/alerts/AccidentAlert.jsx";
 import { useDashboard } from "./context/DashboardContext.jsx";
+import { signIn } from "./services/auth.js";
 import {
   AlertsPage,
   DashboardPage,
@@ -35,10 +36,109 @@ const pages = {
 };
 
 export default function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showCredentials, setShowCredentials] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState("google");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [authError, setAuthError] = useState("");
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { view, backendOnline, backendError, socketConnected, telemetryFresh } = useDashboard();
   const [title, subtitle] = pageMeta[view] || pageMeta.dashboard;
   const Page = pages[view] || DashboardPage;
+
+  function handleGoogleContinue() {
+    setSelectedProvider("google");
+    setShowCredentials(true);
+    setAuthError("");
+  }
+
+  function handleEmailOption() {
+    setSelectedProvider("email");
+    setShowCredentials(true);
+    setAuthError("");
+  }
+
+  function handleEmailSubmit(event) {
+    event.preventDefault();
+    const result = signIn({ email, password, provider: selectedProvider });
+
+    if (!result.ok) {
+      setAuthError(result.message);
+      return;
+    }
+
+    setAuthError("");
+    setIsAuthenticated(true);
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <div className="login-shell">
+        <div className="login-panel">
+          <div className="login-branding">
+            <div className="login-brand-mark">BB</div>
+            <div>
+              <p className="section-kicker">Bike Black Box</p>
+              <h1>Operations access</h1>
+            </div>
+          </div>
+
+          <div className="login-card">
+            <p className="login-kicker">Secure sign in</p>
+            <h2>{showCredentials ? (selectedProvider === "google" ? "Continue with Google" : "Welcome back") : "Continue with Google"}</h2>
+
+            <button type="button" className={`login-button google-button ${selectedProvider === "google" && showCredentials ? "is-selected" : ""}`} onClick={handleGoogleContinue}>
+              <span className="login-button-icon">G</span>
+              Continue with Google
+            </button>
+
+            {showCredentials ? (
+              <>
+                <div className="divider"><span>or</span></div>
+
+                <form onSubmit={handleEmailSubmit} className="login-form">
+                  <label>
+                    <span>{selectedProvider === "google" ? "Google email" : "Email"}</span>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(event) => setEmail(event.target.value)}
+                      placeholder={selectedProvider === "google" ? "yourname@gmail.com" : "you@blackbox.com"}
+                    />
+                  </label>
+
+                  <label>
+                    <span>{selectedProvider === "google" ? "Google password" : "Password"}</span>
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                      placeholder={selectedProvider === "google" ? "Enter your Google password" : "Enter your password"}
+                    />
+                  </label>
+
+                  {authError ? <p className="login-error">{authError}</p> : null}
+
+                  <button type="submit" className="login-button primary-button">
+                    {selectedProvider === "google" ? "Continue with Google" : "Continue with Email / Password"}
+                  </button>
+
+                  <button type="button" className="login-switch" onClick={handleEmailOption}>
+                    Use Email / Password instead
+                  </button>
+                </form>
+              </>
+            ) : (
+              <button type="button" className="login-switch login-switch-top" onClick={handleEmailOption}>
+                Use Email / Password instead
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-screen overflow-hidden bg-[#071018] text-slate-100">
