@@ -77,6 +77,7 @@ export default function App() {
   const [password, setPassword] = useState("");
 
   const [authError, setAuthError] = useState("");
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const {
@@ -148,20 +149,30 @@ export default function App() {
    */
   async function handleEmailSubmit(event) {
     event.preventDefault();
-
     setAuthError("");
 
-    const result = await signIn({
-      email,
-      password,
-    });
+    try {
+      const result = await signIn({
+        email,
+        password,
+      });
 
-    if (!result.ok) {
-      setAuthError(result.message);
-      return;
+      if (!result.ok) {
+        setAuthError(
+          result.message || "Sign in failed. Please check your credentials."
+        );
+        return;
+      }
+
+      setPassword("");
+    } catch (error) {
+      console.error("Email sign-in error:", error);
+
+      setAuthError(
+        error?.message ||
+          "Sign in failed. Please check your credentials and try again."
+      );
     }
-
-    setPassword("");
   }
 
   /*
@@ -212,7 +223,6 @@ export default function App() {
 
           {/* Login Card */}
           <div className="login-card">
-
             <p className="login-kicker">
               Secure sign in
             </p>
