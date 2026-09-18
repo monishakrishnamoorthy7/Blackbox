@@ -10,7 +10,6 @@ const blockchainLedgerPath = process.env.BLOCKCHAIN_LEDGER_PATH || "./data/evide
 
 export const env = {
   port: Number(process.env.PORT) || 4000,
-  mongoUri: process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/bike_black_box",
   corsOrigin,
   corsOrigins: corsOrigin.split(",").map((origin) => origin.trim()).filter(Boolean),
   nodeEnv: process.env.NODE_ENV || "development",

@@ -1,5 +1,6 @@
 import { isDatabaseReady } from "../config/db.js";
 import { env } from "../config/env.js";
+import { accidentDetectionConfig } from "../config/accidentDetection.js";
 
 export function getHealth(_req, res) {
   const dbReady = isDatabaseReady();
@@ -22,5 +23,25 @@ export function getStatus(_req, res) {
       accident: "POST /api/accidents",
     },
     note: "Replace the Node simulator with ESP32 later; the HTTP contract stays the same.",
+  });
+}
+
+export function getSettings(_req, res) {
+  res.json({
+    ok: true,
+    detection: {
+      impactThreshold: accidentDetectionConfig.impactThreshold,
+      rotationThreshold: accidentDetectionConfig.rotationThreshold,
+      speedDropThreshold: accidentDetectionConfig.speedDropThreshold,
+      leanAngleThreshold: accidentDetectionConfig.leanAngleThreshold,
+      confirmationWindowMs: accidentDetectionConfig.confirmationWindowMs,
+      countdownSeconds: accidentDetectionConfig.countdownSeconds,
+    },
+    hardware: {
+      vibrationSensorPin: env.vibrationSensorPin || null,
+      vibrationSensorConfigured: Boolean(env.vibrationSensorPin),
+      blockchainEnabled: env.blockchainEnabled,
+    },
+    storage: isDatabaseReady() ? "Neon (Postgres)" : "Neon (offline) + memory fallback",
   });
 }

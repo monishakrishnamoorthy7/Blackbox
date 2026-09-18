@@ -1,55 +1,80 @@
-const DEMO_CREDENTIALS = {
-  "admin@blackbox.com": "admin123",
-  "ops@blackbox.com": "blackbox123",
-  "support@gmail.com": "google123",
-};
+import {
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithEmailAndPassword,
+  onAuthStateChanged,
+} from "firebase/auth";
 
-export function signIn({ email, password, provider = "email" }) {
-  const normalizedEmail = String(email || "").trim().toLowerCase();
-  const normalizedPassword = String(password || "").trim();
+import { auth } from "./firebase.js";
 
-  if (!normalizedEmail || !normalizedPassword) {
+export async function signInWithGoogle() {
+  try {
+    const provider = new GoogleAuthProvider();
+
+    // Always show the Google account chooser
+    provider.setCustomParameters({
+      prompt: "select_account",
+    });
+
+    const result = await signInWithPopup(auth, provider);
+
+    return {
+      ok: true,
+      user: result.user,
+    };
+  } catch (error) {
+    console.error("Google sign-in error:", error);
+
     return {
       ok: false,
-      message: "Enter both your email and password to continue.",
+      message:
+        error?.message ||
+        "Google sign-in failed. Please try again.",
     };
   }
+}
 
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailPattern.test(normalizedEmail)) {
+export async function signIn({ email, password }) {
+  try {
+    const result = await signInWithEmailAndPassword(
+      auth,
+      email.trim(),
+      password
+    );
+
+    return {
+      ok: true,
+      user: result.user,
+    };
+  } catch (error) {
+    console.error("Email sign-in error:", error);
+
+    let message = "Unable to sign in.";
+
+    if (
+      error.code === "auth/invalid-credential" ||
+      error.code === "auth/wrong-password"
+    ) {
+      message = "Incorrect email or password.";
+    } else if (error.code === "auth/user-not-found") {
+      message = "No account found with this email.";
+    } else if (error.code === "auth/invalid-email") {
+      message = "Enter a valid email address.";
+    } else if (error.code === "auth/too-many-requests") {
+      message =
+        "Too many attempts. Please try again later.";
+    } else if (error.code === "auth/operation-not-allowed") {
+      message =
+        "Email/password sign-in is not enabled in Firebase.";
+    }
+
     return {
       ok: false,
-      message: "Enter a valid email address.",
+      message,
     };
   }
+}
 
-  if (provider === "google" && !normalizedEmail.endsWith("@gmail.com")) {
-    return {
-      ok: false,
-      message: "Google sign-in requires a valid Gmail address.",
-    };
-  }
-
-  if (normalizedPassword.length < 6) {
-    return {
-      ok: false,
-      message: "Password must be at least 6 characters long.",
-    };
-  }
-
-  const expectedPassword = DEMO_CREDENTIALS[normalizedEmail];
-  if (expectedPassword && expectedPassword !== normalizedPassword) {
-    return {
-      ok: false,
-      message: "Incorrect password for this account.",
-    };
-  }
-
-  return {
-    ok: true,
-    user: {
-      email: normalizedEmail,
-      provider,
-    },
-  };
+export function subscribeToAuth(callback) {
+  return onAuthStateChanged(auth, callback);
 }

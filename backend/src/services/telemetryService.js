@@ -1,5 +1,4 @@
-import { Telemetry } from "../models/Telemetry.js";
-import { isDatabaseReady } from "../config/db.js";
+import { prisma, isDatabaseReady, markDatabaseDown } from "../config/db.js";
 import { normalizeVibrationInput } from "../hardware/sw420.js";
 
 const memoryTelemetry = [];
@@ -8,6 +7,10 @@ const MEMORY_LIMIT = 500;
 function finiteNumber(value, fallback = 0) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function withId(row) {
+  return { ...row, _id: row.id };
 }
 
 export function normalizeTelemetryPayload(body = {}) {
@@ -44,10 +47,16 @@ export function normalizeTelemetryPayload(body = {}) {
 }
 
 export async function ingestTelemetry(payload, io) {
-  let doc;
+  let doc = null;
   if (isDatabaseReady()) {
-    doc = await Telemetry.create(payload);
-  } else {
+    try {
+      const row = await prisma.telemetry.create({ data: payload });
+      doc = withId(row);
+    } catch (error) {
+      markDatabaseDown(error);
+    }
+  }
+  if (!doc) {
     doc = {
       ...payload,
       _id: `memory-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -63,19 +72,32 @@ export async function ingestTelemetry(payload, io) {
 
 export async function listTelemetry({ deviceId, limit = 50 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 500);
-  if (!isDatabaseReady()) {
-    return memoryTelemetry.filter((item) => !deviceId || item.deviceId === deviceId).slice(0, safeLimit);
+  if (isDatabaseReady()) {
+    try {
+      const rows = await prisma.telemetry.findMany({
+        where: deviceId ? { deviceId } : undefined,
+        orderBy: { timestamp: "desc" },
+        take: safeLimit,
+      });
+      return rows.map(withId);
+    } catch (error) {
+      markDatabaseDown(error);
+    }
   }
-
-  const query = deviceId ? { deviceId } : {};
-  return Telemetry.find(query).sort({ timestamp: -1 }).limit(safeLimit).lean();
+  return memoryTelemetry.filter((item) => !deviceId || item.deviceId === deviceId).slice(0, safeLimit);
 }
 
 export async function latestTelemetry(deviceId) {
-  if (!isDatabaseReady()) {
-    return memoryTelemetry.find((item) => !deviceId || item.deviceId === deviceId) || null;
+  if (isDatabaseReady()) {
+    try {
+      const row = await prisma.telemetry.findFirst({
+        where: deviceId ? { deviceId } : undefined,
+        orderBy: { timestamp: "desc" },
+      });
+      if (row) return withId(row);
+    } catch (error) {
+      markDatabaseDown(error);
+    }
   }
-
-  const query = deviceId ? { deviceId } : {};
-  return Telemetry.findOne(query).sort({ timestamp: -1 }).lean();
+  return memoryTelemetry.find((item) => !deviceId || item.deviceId === deviceId) || null;
 }

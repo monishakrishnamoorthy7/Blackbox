@@ -9,13 +9,13 @@ The frontend provides a live operations dashboard for telemetry, tracking, senso
 ## Stack
 
 - Frontend: React + Vite, Tailwind CSS, Lucide React, Recharts, React Leaflet + Leaflet
-- Backend: Node.js, Express, Socket.IO, MongoDB + Mongoose, dotenv, CORS
+- Backend: Node.js, Express, Socket.IO, Neon (Postgres) + Prisma, dotenv, CORS
 - Simulator: Node.js `fetch` client
 
 ## Prerequisites
 
 - Node.js 18+
-- MongoDB running locally (default `mongodb://127.0.0.1:27017`)
+- A [Neon](https://neon.tech) Postgres project (free tier is fine) — grab its connection string from **Project → Connection Details**
 
 ## Install
 
@@ -24,7 +24,10 @@ From the project root:
 ```bash
 cd backend
 copy .env.example .env
+# edit .env and set DATABASE_URL to your Neon connection string
 npm install
+npm run prisma:generate
+npm run prisma:push
 
 cd ../frontend
 copy .env.example .env
@@ -88,7 +91,7 @@ Invoke-RestMethod -Method POST http://localhost:4100/control/gps-restore
 Invoke-RestMethod http://localhost:4100/control/status
 ```
 
-The dashboard exposes the same controls in its Demo Control panel. When MongoDB is unavailable, the backend keeps a bounded in-memory telemetry and accident buffer so the simulator and realtime dashboard remain usable; MongoDB is used automatically when it becomes available.
+The dashboard exposes the same controls in its Demo Control panel. When Neon is unavailable, the backend keeps a bounded in-memory telemetry and accident buffer so the simulator and realtime dashboard remain usable; Neon is used automatically as soon as it's reachable again (checked every 5 seconds while down).
 
 ## Accident and emergency workflow
 
@@ -147,7 +150,7 @@ npm run accident
 
 ## Test backend
 
-Health (503 is expected if MongoDB is down):
+Health (503 is expected if Neon is unreachable):
 
 ```bash
 curl http://localhost:4000/api/health

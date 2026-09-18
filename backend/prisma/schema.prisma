@@ -1,0 +1,116 @@
+// Bike Black Box — Postgres schema (Neon), replacing the earlier MongoDB/Mongoose models.
+// Field names and JSON shapes intentionally mirror the old Mongoose schemas exactly, so
+// the services layer (and therefore every controller, route, and the frontend) needed no
+// changes beyond the data-access code in src/services/*.js and src/config/db.js.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Telemetry {
+  id             String   @id @default(uuid())
+  deviceId       String
+  timestamp      DateTime @default(now())
+  speed          Float    @default(0)
+  acceleration   Json     @default("{\"x\":0,\"y\":0,\"z\":0}")
+  gyroscope      Json     @default("{\"x\":0,\"y\":0,\"z\":0}")
+  leanAngle      Float    @default(0)
+  temperature    Float    @default(0)
+  current        Float    @default(0)
+  vibration      Boolean  @default(false)
+  gps            Json     @default("{\"latitude\":null,\"longitude\":null,\"speed\":0,\"course\":0,\"status\":\"nofix\"}")
+  networkStatus  String   @default("unknown")
+  accidentStatus String   @default("normal")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([deviceId])
+  @@index([deviceId, timestamp])
+}
+
+model Accident {
+  id                   String    @id @default(uuid())
+  deviceId             String
+  timestamp            DateTime  @default(now())
+  telemetryId          String?
+  latitude             Float?
+  longitude            Float?
+  speed                Float     @default(0)
+  speedBeforeImpact     Float     @default(0)
+  speedAfterImpact      Float     @default(0)
+  speedBefore          Float     @default(0)
+  speedAfter           Float     @default(0)
+  impact               Float     @default(0)
+  leanAngle            Float     @default(0)
+  gpsStatus            String    @default("nofix")
+  temperature          Float     @default(0)
+  current              Float     @default(0)
+  vibration            Boolean   @default(false)
+  accidentStatus       String    @default("accident")
+  state                String    @default("CONFIRMED")
+  confidence           Float     @default(0)
+  speedDrop            Float     @default(0)
+  acceleration         Json      @default("{}")
+  gyroscope            Json      @default("{}")
+  triggeredSignals     String[]  @default([])
+  networkStatus        String    @default("unknown")
+  sosStatus            String    @default("PENDING")
+  cancelledAt          DateTime?
+  severity             String    @default("high")
+  status               String    @default("open")
+  source               String    @default("simulator")
+  message              String    @default("Accident alert")
+  evidenceId           String?
+  evidenceVersion      Int       @default(1)
+  evidenceHash         String?
+  blockchainStatus     String    @default("PENDING")
+  blockchainReference  String?
+  blockchainRecordedAt DateTime?
+  blockchainVerifiedAt DateTime?
+  blockchainError      String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([deviceId])
+  @@index([deviceId, timestamp])
+  @@index([blockchainStatus])
+  @@index([evidenceId])
+}
+
+model Emergency {
+  id             String    @id @default(uuid())
+  deviceId       String
+  timestamp      DateTime  @default(now())
+  type           String
+  state          String
+  accidentId     String?
+  severity       String    @default("high")
+  confidence     Float     @default(0)
+  latitude       Float?
+  longitude      Float?
+  gpsStatus      String    @default("nofix")
+  speed          Float     @default(0)
+  speedBefore    Float     @default(0)
+  speedAfter     Float     @default(0)
+  speedDrop      Float     @default(0)
+  impact         Float     @default(0)
+  leanAngle      Float     @default(0)
+  temperature    Float     @default(0)
+  current        Float     @default(0)
+  triggeredSignals String[] @default([])
+  acceleration   Json      @default("{}")
+  gyroscope      Json      @default("{}")
+  networkStatus  String    @default("unknown")
+  cancelledAt    DateTime?
+  smsSimulation  Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([deviceId])
+  @@index([deviceId, timestamp])
+}

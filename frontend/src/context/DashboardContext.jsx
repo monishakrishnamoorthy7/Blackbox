@@ -172,7 +172,7 @@ export function DashboardProvider({ children }) {
         const health = await api.getHealth();
         if (cancelled) return;
         setBackendOnline(Boolean(health?.ok) || health?.database === "connected" || Boolean(health));
-        setBackendError(health?.database === "disconnected" ? "API up, MongoDB disconnected" : "");
+        setBackendError(health?.database === "disconnected" ? "API up, Neon disconnected" : "");
         if (health && health.ok === false && health.database === "disconnected") {
           setBackendOnline(true);
         }
@@ -180,7 +180,7 @@ export function DashboardProvider({ children }) {
         if (cancelled) return;
         const databaseOffline = error.status === 503 && (error.body?.database === "disconnected" || error.body?.error === "Database is not connected");
         setBackendOnline(databaseOffline);
-        setBackendError(databaseOffline ? "MongoDB disconnected; using API memory buffer" : error.message || "Backend unavailable");
+        setBackendError(databaseOffline ? "Neon disconnected; using API memory buffer" : error.message || "Backend unavailable");
       }
 
       try {

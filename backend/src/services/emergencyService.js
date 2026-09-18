@@ -1,9 +1,12 @@
-import { Emergency } from "../models/Emergency.js";
-import { isDatabaseReady } from "../config/db.js";
+import { prisma, isDatabaseReady, markDatabaseDown } from "../config/db.js";
 import { latestTelemetry } from "./telemetryService.js";
 import { updateAccidentState } from "./accidentService.js";
 
 const memoryEmergencies = [];
+
+function withId(row) {
+  return { ...row, _id: row.id };
+}
 
 export async function sendEmergencySOS(emergencyData) {
   console.log(`[A7670C SIMULATION] SOS would be sent for ${emergencyData.deviceId}`);
@@ -11,7 +14,14 @@ export async function sendEmergencySOS(emergencyData) {
 }
 
 async function persistEmergency(payload) {
-  if (isDatabaseReady()) return Emergency.create(payload);
+  if (isDatabaseReady()) {
+    try {
+      const row = await prisma.emergency.create({ data: payload });
+      return withId(row);
+    } catch (error) {
+      markDatabaseDown(error);
+    }
+  }
   const event = { ...payload, _id: `memory-emergency-${Date.now()}`, createdAt: new Date(), updatedAt: new Date() };
   memoryEmergencies.unshift(event);
   memoryEmergencies.splice(200);
@@ -57,6 +67,17 @@ export async function createEmergencyEvent(body, io, type, state) {
 
 export async function listEmergencyEvents({ deviceId, limit = 50 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
-  if (!isDatabaseReady()) return memoryEmergencies.filter((item) => !deviceId || item.deviceId === deviceId).slice(0, safeLimit);
-  return Emergency.find(deviceId ? { deviceId } : {}).sort({ timestamp: -1 }).limit(safeLimit).lean();
+  if (isDatabaseReady()) {
+    try {
+      const rows = await prisma.emergency.findMany({
+        where: deviceId ? { deviceId } : undefined,
+        orderBy: { timestamp: "desc" },
+        take: safeLimit,
+      });
+      return rows.map(withId);
+    } catch (error) {
+      markDatabaseDown(error);
+    }
+  }
+  return memoryEmergencies.filter((item) => !deviceId || item.deviceId === deviceId).slice(0, safeLimit);
 }

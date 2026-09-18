@@ -1,7 +1,15 @@
 node_modules/
 dist/
+
 .env
+.env.local
+.env.*.local
+
 *.log
 backend/data/
+
 .DS_Store
 Thumbs.db
+
+firmware/.pio/
+firmware/include/config.h

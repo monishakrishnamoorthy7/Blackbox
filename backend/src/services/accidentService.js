@@ -1,5 +1,4 @@
-import { Accident } from "../models/Accident.js";
-import { isDatabaseReady } from "../config/db.js";
+import { prisma, isDatabaseReady, markDatabaseDown } from "../config/db.js";
 import { ingestTelemetry, normalizeTelemetryPayload } from "./telemetryService.js";
 import { accidentDetectionConfig } from "../config/accidentDetection.js";
 import { createEvidenceId } from "./blockchain/blockchainService.js";
@@ -7,14 +6,24 @@ import { syncAccidentEvidence } from "./blockchain/blockchainSyncService.js";
 
 const memoryAccidents = [];
 
+function withId(row) {
+  return { ...row, _id: row.id };
+}
+
+function isNotFound(error) {
+  return error?.code === "P2025";
+}
+
 export async function updateAccidentState(accidentId, state, sosStatus = state) {
   if (!accidentId) return null;
+  const patch = { state, sosStatus, ...(state === "CANCELLED" ? { cancelledAt: new Date() } : {}) };
   if (isDatabaseReady()) {
-    return Accident.findByIdAndUpdate(
-      accidentId,
-      { state, sosStatus, ...(state === "CANCELLED" ? { cancelledAt: new Date() } : {}) },
-      { new: true }
-    ).lean();
+    try {
+      const row = await prisma.accident.update({ where: { id: String(accidentId) }, data: patch });
+      return withId(row);
+    } catch (error) {
+      if (!isNotFound(error)) markDatabaseDown(error);
+    }
   }
   const accident = memoryAccidents.find((item) => String(item._id) === String(accidentId));
   if (!accident) return null;
@@ -27,7 +36,12 @@ export async function updateAccidentState(accidentId, state, sosStatus = state) 
 export async function updateAccidentMetadata(accidentId, metadata) {
   if (!accidentId) return null;
   if (isDatabaseReady()) {
-    return Accident.findByIdAndUpdate(accidentId, metadata, { new: true }).lean();
+    try {
+      const row = await prisma.accident.update({ where: { id: String(accidentId) }, data: metadata });
+      return withId(row);
+    } catch (error) {
+      if (!isNotFound(error)) markDatabaseDown(error);
+    }
   }
   const accident = memoryAccidents.find((item) => String(item._id) === String(accidentId));
   if (!accident) return null;
@@ -36,7 +50,14 @@ export async function updateAccidentMetadata(accidentId, metadata) {
 }
 
 export async function getAccidentAlert(accidentId) {
-  if (isDatabaseReady()) return Accident.findById(accidentId).lean();
+  if (isDatabaseReady()) {
+    try {
+      const row = await prisma.accident.findUnique({ where: { id: String(accidentId) } });
+      if (row) return withId(row);
+    } catch (error) {
+      if (!isNotFound(error)) markDatabaseDown(error);
+    }
+  }
   return memoryAccidents.find((item) => String(item._id) === String(accidentId)) || null;
 }
 
@@ -90,15 +111,25 @@ export async function createAccidentAlert(body, io, options = {}) {
     blockchainRecordedAt: body.blockchainRecordedAt || null,
     blockchainError: body.blockchainError || null,
   };
-  const alert = isDatabaseReady()
-    ? await Accident.create(accidentPayload)
-    : {
-        ...accidentPayload,
-        _id: `memory-accident-${Date.now()}`,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      };
-  if (!isDatabaseReady()) memoryAccidents.unshift(alert);
+
+  let alert = null;
+  if (isDatabaseReady()) {
+    try {
+      const row = await prisma.accident.create({ data: accidentPayload });
+      alert = withId(row);
+    } catch (error) {
+      markDatabaseDown(error);
+    }
+  }
+  if (!alert) {
+    alert = {
+      ...accidentPayload,
+      _id: `memory-accident-${Date.now()}`,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    memoryAccidents.unshift(alert);
+  }
 
   io?.emit("accident:alert", { alert, telemetry });
   io?.emit("accident:countdown", {
@@ -113,44 +144,61 @@ export async function createAccidentAlert(body, io, options = {}) {
 
 export async function listAccidentAlerts({ deviceId, limit = 50 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
-  if (!isDatabaseReady()) {
-    return memoryAccidents.filter((item) => !deviceId || item.deviceId === deviceId).slice(0, safeLimit);
+  if (isDatabaseReady()) {
+    try {
+      const rows = await prisma.accident.findMany({
+        where: deviceId ? { deviceId } : undefined,
+        orderBy: { timestamp: "desc" },
+        take: safeLimit,
+      });
+      return rows.map(withId);
+    } catch (error) {
+      markDatabaseDown(error);
+    }
   }
-
-  const query = deviceId ? { deviceId } : {};
-  return Accident.find(query).sort({ timestamp: -1 }).limit(safeLimit).lean();
+  return memoryAccidents.filter((item) => !deviceId || item.deviceId === deviceId).slice(0, safeLimit);
 }
 
-function reportQuery({ deviceId, dateFrom, dateTo, status, severity, gpsStatus } = {}) {
-  const query = {};
-  if (deviceId) query.deviceId = deviceId;
-  if (status) query.state = status;
-  if (severity) query.severity = severity;
-  if (gpsStatus) query.gpsStatus = gpsStatus;
+function reportWhere({ deviceId, dateFrom, dateTo, status, severity, gpsStatus } = {}) {
+  const where = {};
+  if (deviceId) where.deviceId = deviceId;
+  if (status) where.state = status;
+  if (severity) where.severity = severity;
+  if (gpsStatus) where.gpsStatus = gpsStatus;
   if (dateFrom || dateTo) {
-    query.timestamp = {};
-    if (dateFrom) query.timestamp.$gte = new Date(`${dateFrom}T00:00:00.000Z`);
-    if (dateTo) query.timestamp.$lte = new Date(`${dateTo}T23:59:59.999Z`);
+    where.timestamp = {};
+    if (dateFrom) where.timestamp.gte = new Date(`${dateFrom}T00:00:00.000Z`);
+    if (dateTo) where.timestamp.lte = new Date(`${dateTo}T23:59:59.999Z`);
   }
-  return query;
+  return where;
+}
+
+function matchesReportFilters(accident, { deviceId, dateFrom, dateTo, status, severity, gpsStatus } = {}) {
+  if (deviceId && accident.deviceId !== deviceId) return false;
+  if (status && accident.state !== status) return false;
+  if (severity && accident.severity !== severity) return false;
+  if (gpsStatus && accident.gpsStatus !== gpsStatus) return false;
+  const timestamp = new Date(accident.timestamp).getTime();
+  if (dateFrom && timestamp < new Date(`${dateFrom}T00:00:00.000Z`).getTime()) return false;
+  if (dateTo && timestamp > new Date(`${dateTo}T23:59:59.999Z`).getTime()) return false;
+  return true;
 }
 
 export async function listReportAccidents(filters = {}) {
-  const query = reportQuery(filters);
   const safeLimit = Math.min(Math.max(Number(filters.limit) || 1000, 1), 5000);
-  if (!isDatabaseReady()) {
-    return memoryAccidents.filter((accident) => {
-      if (query.deviceId && accident.deviceId !== query.deviceId) return false;
-      if (query.state && accident.state !== query.state) return false;
-      if (query.severity && accident.severity !== query.severity) return false;
-      if (query.gpsStatus && accident.gpsStatus !== query.gpsStatus) return false;
-      const timestamp = new Date(accident.timestamp).getTime();
-      if (query.timestamp?.$gte && timestamp < query.timestamp.$gte.getTime()) return false;
-      if (query.timestamp?.$lte && timestamp > query.timestamp.$lte.getTime()) return false;
-      return true;
-    }).slice(0, safeLimit);
+  if (isDatabaseReady()) {
+    try {
+      const rows = await prisma.accident.findMany({
+        where: reportWhere(filters),
+        orderBy: { timestamp: "desc" },
+        take: safeLimit,
+      });
+      return rows.map(withId);
+    } catch (error) {
+      markDatabaseDown(error);
+    }
   }
-  return Accident.find(query).sort({ timestamp: -1 }).limit(safeLimit).lean();
+  return memoryAccidents.filter((accident) => matchesReportFilters(accident, filters)).slice(0, safeLimit);
 }
 
 export async function summarizeReportAccidents(filters = {}) {

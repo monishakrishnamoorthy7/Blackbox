@@ -40,6 +40,7 @@ async function simulatorRequest(path, options = {}) {
 export const api = {
   getHealth: () => request("/api/health"),
   getStatus: () => request("/api/status"),
+  getSettings: () => request("/api/settings"),
   getTelemetry: (deviceId, limit = 50) => {
     const params = new URLSearchParams();
     if (deviceId) params.set("deviceId", deviceId);

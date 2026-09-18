@@ -10,7 +10,7 @@ export default function SensorStatus() {
 
   const sensors = [
     { name: "MPU6050", detail: "IMU / lean / impact", state: live ? "Online" : warning ? "Warning" : "Offline" },
-    { name: "NEO-8M GPS", detail: "Position lock", state: hasGpsFix(telemetry) && live ? "Online" : telemetry?.gps ? "Warning" : "Offline" },
+    { name: "NEO-6M GPS", detail: "Position lock", state: hasGpsFix(telemetry) && live ? "Online" : telemetry?.gps ? "Warning" : "Offline" },
     { name: "MAX6675", detail: "Temperature", state: live && telemetry?.temperature != null ? "Online" : warning ? "Warning" : "Offline" },
     { name: "ACS712", detail: "Current sense", state: live && telemetry?.current != null ? "Online" : warning ? "Warning" : "Offline" },
     { name: "SW-420", detail: telemetry?.vibration === true ? "VIBRATION DETECTED" : "NORMAL / NO VIBRATION", state: live ? (telemetry?.vibration === true ? "Warning" : "Online") : warning ? "Warning" : "Offline" },
