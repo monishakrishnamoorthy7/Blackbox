@@ -1,0 +1,11 @@
+{
+  "name": "bike-black-box-system",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "concurrently --kill-others-on-fail --names backend,frontend,simulator --prefix-colour blue,green,yellow \"npm --prefix backend run dev\" \"npm --prefix frontend run dev\" \"npm --prefix simulator start\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}
