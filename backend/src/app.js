@@ -10,18 +10,17 @@ import { attachSockets } from "./sockets/index.js";
 export function createApp() {
   const app = express();
   const server = http.createServer(app);
-  const corsOption = env.corsOrigins === "*" ? true : env.corsOrigins;
 
   const io = new Server(server, {
     cors: {
-      origin: env.corsOrigins,
+      origin: "*",
       methods: ["GET", "POST"],
     },
   });
 
   app.set("io", io);
   attachSockets(io);
-  app.use(cors({ origin: corsOption, credentials: true }));
+  app.use(cors());
   app.use(express.json({ limit: "1mb" }));
 
   app.get("/", (_req, res) => {
