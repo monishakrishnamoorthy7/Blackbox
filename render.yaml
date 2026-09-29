@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: bike-black-box-backend
+    env: node
+    region: singapore
+    plan: free
+    rootDir: backend
+    buildCommand: npm install && npx prisma generate
+    startCommand: node src/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: CORS_ORIGIN
+        fromGroup: bike-black-box
+      - key: DATABASE_URL
+        fromGroup: bike-black-box
+      - key: BLOCKCHAIN_ENABLED
+        value: "true"
+      - key: BLOCKCHAIN_LEDGER_PATH
+        value: ./data/evidence-ledger.jsonl
+      - key: BLOCKCHAIN_LEDGER_RETENTION_DAYS
+        value: "7"
+      - key: BLOCKCHAIN_RETRY_ENABLED
+        value: "true"
+      - key: BLOCKCHAIN_MAX_RETRIES
+        value: "5"
+      - key: BLOCKCHAIN_RETRY_INTERVAL_MS
+        value: "5000"
