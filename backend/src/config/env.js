@@ -5,7 +5,7 @@ import { fileURLToPath } from "url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
-const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:5173";
+const corsOrigin = process.env.CORS_ORIGIN || "*";
 const blockchainLedgerPath =
   process.env.BLOCKCHAIN_LEDGER_PATH || "./data/evidence-ledger.jsonl";
 
@@ -14,14 +14,16 @@ const blockchainLedgerRetentionDays =
 
 export const env = {
   port: Number(process.env.PORT) || 4000,
-    mongoUri:
+  mongoUri:
     process.env.MONGODB_URI ||
     "mongodb://127.0.0.1:27017/bike_black_box",
   corsOrigin,
-  corsOrigins: corsOrigin
-    .split(",")
-    .map((origin) => origin.trim())
-    .filter(Boolean),
+  corsOrigins: corsOrigin === "*"
+    ? "*"
+    : corsOrigin
+        .split(",")
+        .map((origin) => origin.trim())
+        .filter(Boolean),
   nodeEnv: process.env.NODE_ENV || "development",
   blockchainEnabled: process.env.BLOCKCHAIN_ENABLED !== "false",
   blockchainLedgerPath,
